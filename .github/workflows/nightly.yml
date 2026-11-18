@@ -1,0 +1,49 @@
+name: Nightly job scan
+
+on:
+  schedule:
+    # 03:30 UTC = 05:30 Israel winter time / 06:30 summer time. GitHub may start scheduled runs a few minutes late.
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (write nothing, send nothing)"
+        type: boolean
+        default: false
+      weekly:
+        description: "Also send the weekly summary"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jobscout
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Run pipeline
+        run: npm run pipeline -- ${{ inputs.dry_run == true && '--dry-run' || '' }} ${{ inputs.weekly == true && '--weekly' || '' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL }}
+          CLAUDE_MAX_JOBS: ${{ vars.CLAUDE_MAX_JOBS }}
+          DIGEST_MIN_SCORE: ${{ vars.DIGEST_MIN_SCORE }}

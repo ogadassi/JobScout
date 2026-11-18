@@ -1,84 +1,83 @@
 /**
  * schemas.ts
  *
- * Public contracts for the whole application.
- * Only two schemas live here — the internal job shape and the config shape.
- * These are the only types that cross module boundaries.
+ * Public contracts shared across modules. Raw API response shapes stay
+ * private to each collector; everything is mapped into `JobPosting` before
+ * the rest of the app sees it.
  *
- * Raw SerpApi response schemas are a private concern of SerpApiService.ts.
- * They live there because they describe the API's format, not ours.
- *
- * Why Zod? It validates at runtime AND gives us compile-time types via
- * z.infer<> — so we define a shape once and get both for free.
- * This replaces the old pattern of writing `interface Foo {}` and separately
- * hoping the API matches it.
+ * Why Zod? One definition gives runtime validation AND a compile-time type
+ * via z.infer<>, so external data is checked at the boundary.
  */
 
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
-// 1. Internal Normalized Type — JobEntry
+// Target companies (config/companies.json)
 // ---------------------------------------------------------------------------
 
-/**
- * The application's canonical job representation.
- * Every module (filter engine, Excel writer, orchestrator) speaks this shape.
- *
- * `priority` and `status` use z.enum() which gives us TypeScript union types
- * like "High" | "Medium" | "Low" for free — no manual type definition needed.
- *
- * Jobs start as raw API data and are mapped INTO this shape inside
- * SerpApiService.ts before anything else in the app ever sees them.
- */
-export const JobEntrySchema = z.object({
-  jobId: z.string(),               // SerpApi's job_id — used for deduplication
-  title: z.string(),
+export const AtsSchema = z.enum(["greenhouse", "lever", "ashby", "comeet"]);
+export type Ats = z.infer<typeof AtsSchema>;
+
+export const CompanySchema = z.object({
+  name: z.string().min(1),
+  ats: AtsSchema,
+  /** Greenhouse/Lever/Ashby board token, or "slug/UID" for Comeet. */
+  board: z.string().min(1),
+  /** Which kinds of teams the company hires for that fit the search. */
+  teams: z.array(z.string()).default([]),
+  notes: z.string().optional(),
+  enabled: z.boolean().default(true),
+});
+export type Company = z.infer<typeof CompanySchema>;
+
+export const CompanyListSchema = z.object({
+  companies: z.array(CompanySchema),
+});
+
+// ---------------------------------------------------------------------------
+// Normalized job posting (output of every collector)
+// ---------------------------------------------------------------------------
+
+export const SourceSchema = z.enum(["greenhouse", "lever", "ashby", "comeet", "linkedin-email"]);
+export type Source = z.infer<typeof SourceSchema>;
+
+export const JobPostingSchema = z.object({
+  source: SourceSchema,
   company: z.string(),
+  title: z.string(),
+  link: z.string().url(),
   location: z.string(),
-  link: z.string(),                // Direct apply link (or SerpApi fallback link)
-  description: z.string(),         // Full text — used by the filter engine to score
-  postedAt: z.string().optional(), // Human-readable, e.g. "3 days ago"
-  priority: z.enum(["High", "Medium", "Low"]).default("Low"),
-  score: z.number().default(0),    // Numeric score assigned by the filter engine
-  status: z.enum(["New", "Saved", "Applied", "Rejected"]).default("New"),
-  foundAt: z.string(),             // ISO timestamp of when WE discovered this job
+  remote: z.boolean(),
+  /** Plain text (HTML stripped). May be empty, e.g. for LinkedIn alert emails. */
+  description: z.string(),
+  department: z.string().optional(),
+  /** ATS-provided seniority label when available (Comeet). */
+  experienceLevel: z.string().optional(),
+  postedAt: z.string().optional(),
 });
+export type JobPosting = z.infer<typeof JobPostingSchema>;
 
 // ---------------------------------------------------------------------------
-// 2. App Configuration Schema
+// Stored row (Supabase table `jobscout_jobs`, or data/jobs.json locally)
 // ---------------------------------------------------------------------------
 
-/**
- * Validated shape of our .env variables.
- *
- * `z.string().min(1)` rejects both missing AND empty-string values —
- * a misconfigured key fails loudly at startup rather than silently
- * crashing mid-run with a cryptic "Cannot read properties of undefined".
- */
-export const AppConfigSchema = z.object({
-  SERPAPI_KEY: z.string().min(1, "SERPAPI_KEY is required and cannot be empty"),
-  OUTPUT_PATH: z
-    .string()
-    .min(1, "OUTPUT_PATH is required and cannot be empty")
-    .default("./output/jobs.xlsx"),
+export const JobStatusSchema = z.enum(["new", "starred", "applied", "replied", "interview", "rejected"]);
+export type JobStatus = z.infer<typeof JobStatusSchema>;
+
+export const JobRowSchema = z.object({
+  url_hash: z.string(),
+  date_found: z.string(), // YYYY-MM-DD, Israel time
+  company: z.string(),
+  title: z.string(),
+  link: z.string(),
+  location: z.string().nullable(),
+  source: z.string(),
+  score: z.coerce.number(),
+  reason: z.string().nullable(),
+  status: JobStatusSchema,
+  applied_date: z.string().nullable(),
+  follow_up_date: z.string().nullable(),
+  notes: z.string().nullable().optional(),
+  digested_at: z.string().nullable(),
 });
-
-// ---------------------------------------------------------------------------
-// 3. Exported Inferred Types
-// ---------------------------------------------------------------------------
-
-/**
- * How to read `z.infer<typeof Schema>`:
- * TypeScript extracts the static type that the Zod schema represents.
- * Define the shape once in Zod → get runtime validation + compile-time
- * type safety simultaneously. No duplication.
- */
-export type JobEntry = z.infer<typeof JobEntrySchema>;
-export type AppConfig = z.infer<typeof AppConfigSchema>;
-
-// Convenience union types — useful for function parameter annotations
-// How to read `JobEntry["priority"]`: index into the JobEntry type to get
-// just the type of the `priority` field → "High" | "Medium" | "Low"
-export type Priority = JobEntry["priority"];
-export type JobStatus = JobEntry["status"];
-
+export type JobRow = z.infer<typeof JobRowSchema>;
