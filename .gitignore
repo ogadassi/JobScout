@@ -3,3 +3,5 @@ thumbs.db
 node_modules/
 .env
 dist/
+data/
+.cache/

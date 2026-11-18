@@ -1,27 +1,32 @@
 {
   "name": "jobscout",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Nightly job-search pipeline: collects jobs from Israeli company job boards, scores them, stores them in Supabase and sends a Telegram digest.",
   "type": "module",
-  "main": "index.js",
-  "scripts": {
-    "dev": "npx ts-node src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "engines": {
+    "node": ">=22"
   },
-  "keywords": [],
-  "author": "",
+  "scripts": {
+    "pipeline": "tsx src/index.ts",
+    "pipeline:dry": "tsx src/index.ts --dry-run",
+    "weekly": "tsx src/index.ts --weekly-only",
+    "telegram:chat-id": "tsx src/tools/telegramChatId.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"test/**/*.test.ts\""
+  },
   "license": "ISC",
   "dependencies": {
-    "axios": "^1.16.0",
-    "dotenv": "^17.4.2",
-    "exceljs": "^4.4.0",
-    "zod": "^4.4.3"
+    "@anthropic-ai/sdk": "^1.10.0",
+    "@supabase/supabase-js": "^2.119.0",
+    "imapflow": "^2.12.1",
+    "mailparser": "^3.14.5",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@types/mailparser": "^3.9.0",
     "@types/node": "^25.6.0",
-    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^6.0.3"
-  },
-  "description": ""
+  }
 }
