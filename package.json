@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"test/**/*.test.ts\""
   },
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^1.10.0",
     "@supabase/supabase-js": "^2.119.0",

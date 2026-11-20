@@ -58,10 +58,10 @@ Every setting is optional. Without Supabase, jobs go to `data/jobs.json`. Withou
 
 ### 1. Supabase (where jobs are stored)
 
-The table `jobscout_jobs` already exists in the **forest-v3** project. It was added there because the free plan allows only 2 projects. To recreate it elsewhere, run `supabase/schema.sql` in the SQL editor.
+Create a free Supabase project (or reuse one you have), then run `supabase/schema.sql` in its SQL editor to create the `jobscout_jobs` table.
 
-- `SUPABASE_URL` = `https://lyqqpyfvewaufhxhdpmx.supabase.co`
-- `SUPABASE_SECRET_KEY`: Supabase dashboard → forest-v3 → Project Settings → API Keys → the **secret** key (`sb_secret_…`) or the legacy `service_role` key. Row-level security is on, so the public key can't read the table.
+- `SUPABASE_URL`: Project Settings → Data API → the project URL (`https://<your-project>.supabase.co`)
+- `SUPABASE_SECRET_KEY`: Project Settings → API Keys → the **secret** key (`sb_secret_…`) or the legacy `service_role` key. Row-level security is on, so the public key can't read the table.
 
 **Working with the table:** open Table Editor → `jobscout_jobs` and change `status` as you go: `new` → `starred` / `applied` / `replied` / `interview` / `rejected`.
 

@@ -1,5 +1,4 @@
--- JobScout table. Run once in the Supabase SQL editor (already applied to the
--- forest-v3 project on 2026-11-18). Safe to re-run.
+-- JobScout table. Run once in the Supabase SQL editor. Safe to re-run.
 
 create table if not exists public.jobscout_jobs (
   url_hash        text primary key,                 -- sha256 of the normalized job URL (dedupe key)
