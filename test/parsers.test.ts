@@ -3,6 +3,8 @@ import { test } from "node:test";
 import { extractPositionsJson } from "../src/collectors/comeet.js";
 import { parseAlertText } from "../src/collectors/linkedinEmail.js";
 import { mapSmartRecruitersPosting } from "../src/collectors/smartrecruiters.js";
+import { dailyDigest } from "../src/digest/format.js";
+import { toEmail } from "../src/notify/email.js";
 import { splitMessage } from "../src/notify/telegram.js";
 import { htmlToText, normalizeUrl, urlHash } from "../src/utils/text.js";
 
@@ -93,4 +95,26 @@ test("SmartRecruiters posting maps to a job with description and public link", (
   const bare = mapSmartRecruitersPosting(company, { id: "1", name: "Support" });
   assert.equal(bare.link, "https://jobs.smartrecruiters.com/CheckPointSoftwareTechnologies2/1");
   assert.equal(bare.description, "");
+});
+
+test("The email digest keeps every job field and writes links out in plain text", () => {
+  const html = dailyDigest(
+    "2026-11-23",
+    [
+      {
+        url_hash: "h", date_found: "2026-11-23", company: "Kaltura", title: "Support & Ops", link: "https://x.com/j?a=1&b=2",
+        location: "Tel Aviv", source: "greenhouse", score: 8, reason: "Fits your IT support background", status: "new",
+        applied_date: null, follow_up_date: null, notes: null, digested_at: null,
+      },
+    ],
+    [],
+    { companies: 80, failedCompanies: 0, scanned: 4300, matched: 60, newJobs: 1 },
+  );
+  const mail = toEmail(html);
+  assert.equal(mail.subject, "JobScout · 2026-11-23");
+  for (const part of ["Support & Ops", "Kaltura", "8/10", "Fits your IT support background", "Open job: https://x.com/j?a=1&b=2"]) {
+    assert.ok(mail.text.includes(part), part);
+  }
+  assert.ok(mail.html.includes('<a href="https://x.com/j?a=1&amp;b=2">Open job</a>'));
+  assert.ok(mail.html.includes("<br>"));
 });

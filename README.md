@@ -6,7 +6,7 @@ A nightly job-search pipeline for Israel. Each night it:
 2. **Filters**: keeps Tel Aviv area, other Israel, or remote-from-Israel jobs. Drops senior, lead and manager roles, and ads asking for 5+ years.
 3. **Scores** each job 0–10. Keyword rules always run. If a Gemini key (free) or an Anthropic key is set, AI also scores each job and writes a one-line reason.
 4. **Dedupes** by a hash of the job URL and **stores** new jobs in Supabase.
-5. **Sends** a morning Telegram digest of the top 10 new jobs and any follow-ups due. On Thursdays it also sends a weekly summary.
+5. **Sends** a morning digest by email (or Telegram) with the top 10 new jobs and any follow-ups due. On Thursdays it also sends a weekly summary.
 
 You handle applications and referrals yourself. JobScout only finds and ranks jobs.
 
@@ -50,7 +50,7 @@ npm run pipeline
 | `npm run telegram:chat-id` | Find your Telegram chat id (add `-- --test` to send a test message) |
 | `npm test` | Unit tests (rules, URL dedupe, parsers) |
 
-Every setting is optional. Without Supabase, jobs go to `data/jobs.json`. Without Telegram, the digest prints in the terminal. Without a Gemini or Anthropic key, only keyword scores are used.
+Every setting is optional. Without Supabase, jobs go to `data/jobs.json`. Without email (or Telegram), the digest prints in the terminal. Without a Gemini or Anthropic key, only keyword scores are used.
 
 ---
 
@@ -71,7 +71,18 @@ Create a free Supabase project (or reuse one you have), then run `supabase/schem
 
 Columns: date found, company, title, link, location, source, score, reason, status, applied date, follow-up date, notes.
 
-### 2. Telegram (morning digest)
+### 2. Morning digest: email (default) or Telegram
+
+`DIGEST_CHANNEL` picks where the digest goes: `email` (the default) or `telegram`. Both senders stay in the code, so switching back is one setting. The content is the same either way: each job's title, company, score, the reason it fits, and a link to the ad.
+
+**Email (SMTP, Gmail by default):**
+
+1. In the Google account that will send the email, turn on 2-step verification, then create an **App password** (myaccount.google.com/apppasswords).
+2. Set `SMTP_USER` to that Gmail address and `SMTP_PASSWORD` to the app password (never your normal password).
+3. Set `DIGEST_EMAIL_TO` to the address that should get the digest (several can be separated by commas).
+4. Another provider? Set `SMTP_HOST` and `SMTP_PORT` too (defaults: `smtp.gmail.com`, `465`).
+
+**Telegram:** set `DIGEST_CHANNEL=telegram`, then:
 
 1. In Telegram, message **@BotFather**, send `/newbot`, and copy the token into `TELEGRAM_BOT_TOKEN`.
 2. Send your new bot any message, for example "hi".
@@ -98,10 +109,11 @@ Only the top `CLAUDE_MAX_JOBS` new jobs per night (default 40) are sent to AI sc
 
 1. GitHub repo → **Settings → Secrets and variables → Actions → New repository secret**. Add the secrets you use:
    - `SUPABASE_URL`, `SUPABASE_SECRET_KEY`
-   - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
+   - `SMTP_USER`, `SMTP_PASSWORD`, `DIGEST_EMAIL_TO` (email digest)
+   - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (only for the Telegram digest)
    - `GEMINI_API_KEY` (free) or `ANTHROPIC_API_KEY` (paid)
    - `GMAIL_USER`, `GMAIL_APP_PASSWORD`
-2. Optional **Variables** (same page, Variables tab): `GEMINI_MODEL`, `CLAUDE_MODEL`, `CLAUDE_MAX_JOBS`, `DIGEST_MIN_SCORE`.
+2. Optional **Variables** (same page, Variables tab): `DIGEST_CHANNEL` (`email` or `telegram`), `SMTP_HOST`, `SMTP_PORT`, `GEMINI_MODEL`, `CLAUDE_MODEL`, `CLAUDE_MAX_JOBS`, `DIGEST_MIN_SCORE`.
 3. Scheduled workflows only run from the default branch (`master`), so the workflow starts after this branch is merged.
 4. To test it, open the **Actions** tab → **Nightly job scan** → **Run workflow** (tick "Dry run" first if you like).
 
@@ -151,6 +163,7 @@ src/collectors/           greenhouse, lever, ashby, comeet, smartrecruiters, lin
 src/scoring/              rules.ts (keywords), gemini.ts and claude.ts (AI score)
 src/storage/              supabase.ts, localFile.ts (data/jobs.json fallback)
 src/digest/format.ts      morning digest + weekly summary text
+src/notify/email.ts       email sender (SMTP)
 src/notify/telegram.ts    Telegram sender
 src/pipeline.ts           the nightly run, step by step
 src/index.ts              command-line entry point
