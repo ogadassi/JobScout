@@ -58,3 +58,11 @@ test("Telegram messages are split under the size limit", () => {
   assert.ok(parts.length > 1);
   for (const p of parts) assert.ok(p.length <= 4096);
 });
+
+test("parseScore reads Gemini JSON, with or without fences, and clamps the score", async () => {
+  const { parseScore } = await import("../src/scoring/gemini.js");
+  assert.deepEqual(parseScore('{"score": 7.3, "reason": " Good fit "}'), { score: 7.5, reason: "Good fit" });
+  assert.deepEqual(parseScore('```json\n{"score": 12, "reason": "x"}\n```'), { score: 10, reason: "x" });
+  assert.equal(parseScore("not json"), null);
+  assert.equal(parseScore('{"score": "high"}'), null);
+});

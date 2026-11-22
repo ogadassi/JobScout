@@ -3,8 +3,8 @@
  *
  * The only module that reads `process.env`. Every setting is optional so the
  * pipeline can run with whatever is configured: no Supabase -> local JSON file,
- * no Telegram -> digest printed to the console, no Anthropic key -> rule-based
- * scores only.
+ * no Telegram -> digest printed to the console, no Gemini or Anthropic key ->
+ * rule-based scores only.
  *
  * Uses Node's built-in `process.loadEnvFile()` (Node 20.12+), which replaces
  * the `dotenv` package.
@@ -28,9 +28,14 @@ const EnvSchema = z.object({
   TELEGRAM_BOT_TOKEN: optional,
   TELEGRAM_CHAT_ID: optional,
 
+  /** Free AI scoring (Google AI Studio key). Used instead of Claude when set. */
+  GEMINI_API_KEY: optional,
+  /** Pin a Gemini model; empty = newest flash model the key can use. */
+  GEMINI_MODEL: optional,
+
   ANTHROPIC_API_KEY: optional,
   CLAUDE_MODEL: z.preprocess((v) => (v === "" ? undefined : v), z.string().default("claude-opus-5-5")),
-  /** Max new jobs per run sent to Claude for scoring (cost cap). */
+  /** Max new jobs per run sent to AI scoring (Gemini or Claude). */
   CLAUDE_MAX_JOBS: intWithDefault(40),
 
   GMAIL_USER: optional,
@@ -54,6 +59,7 @@ export const env = Object.freeze(parsed.data);
 export const features = Object.freeze({
   supabase: Boolean(env.SUPABASE_URL && env.SUPABASE_SECRET_KEY),
   telegram: Boolean(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID),
+  gemini: Boolean(env.GEMINI_API_KEY),
   claude: Boolean(env.ANTHROPIC_API_KEY),
   linkedinEmail: Boolean(env.GMAIL_USER && env.GMAIL_APP_PASSWORD),
 });

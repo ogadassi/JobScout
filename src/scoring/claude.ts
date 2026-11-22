@@ -15,13 +15,13 @@ import type { JobPosting } from "../types/schemas.js";
 import { env } from "../utils/config.js";
 import { Logger } from "../utils/logger.js";
 
-const ScoreSchema = z.object({
+export const ScoreSchema = z.object({
   score: z.number().describe("Fit score from 0 (no fit) to 10 (ideal fit)"),
   reason: z.string().describe("One short line (max ~20 words) explaining the score"),
 });
 export type ClaudeScore = z.infer<typeof ScoreSchema>;
 
-const SYSTEM = `You screen job ads for one job seeker and rate how well each ad fits them.
+export const SYSTEM = `You screen job ads for one job seeker and rate how well each ad fits them.
 
 Rate fit from 0 to 10:
 - 9-10: one of their top target roles, junior-friendly, location works.
@@ -37,7 +37,7 @@ ${readFileSync("config/profile.md", "utf8")}`;
 let client: Anthropic | null = null;
 
 /** Description is passed in full; ads are typically 2-8K characters. */
-function jobPrompt(job: JobPosting): string {
+export function jobPrompt(job: JobPosting): string {
   return [
     `Company: ${job.company}`,
     `Title: ${job.title}`,

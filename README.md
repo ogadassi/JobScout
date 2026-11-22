@@ -4,7 +4,7 @@ A nightly job-search pipeline for Israel. Each night it:
 
 1. **Collects** open jobs from ~75 Israeli tech companies' public job boards (Greenhouse, Lever, Ashby, Comeet). It can also read LinkedIn job-alert emails from Gmail.
 2. **Filters**: keeps Tel Aviv area, other Israel, or remote-from-Israel jobs. Drops senior, lead and manager roles, and ads asking for 5+ years.
-3. **Scores** each job 0–10. Keyword rules always run. If an Anthropic key is set, Claude also scores each job and writes a one-line reason.
+3. **Scores** each job 0–10. Keyword rules always run. If a Gemini key (free) or an Anthropic key is set, AI also scores each job and writes a one-line reason.
 4. **Dedupes** by a hash of the job URL and **stores** new jobs in Supabase.
 5. **Sends** a morning Telegram digest of the top 10 new jobs and any follow-ups due. On Thursdays it also sends a weekly summary.
 
@@ -44,13 +44,13 @@ npm run pipeline
 |---|---|
 | `npm run pipeline` | Full run: collect, score, save, send digest (and the weekly summary on Thursdays) |
 | `npm run pipeline:dry` | Same, but saves nothing and sends nothing |
-| `npm run pipeline -- --no-claude` | Skip Claude scoring (keyword scores only) |
+| `npm run pipeline -- --no-claude` | Skip AI scoring, Gemini or Claude (keyword scores only) |
 | `npm run pipeline -- --only=comeet,Riskified --max-companies=5` | Quick test on a few boards |
 | `npm run weekly` | Send the weekly summary now |
 | `npm run telegram:chat-id` | Find your Telegram chat id (add `-- --test` to send a test message) |
 | `npm test` | Unit tests (rules, URL dedupe, parsers) |
 
-Every setting is optional. Without Supabase, jobs go to `data/jobs.json`. Without Telegram, the digest prints in the terminal. Without an Anthropic key, only keyword scores are used.
+Every setting is optional. Without Supabase, jobs go to `data/jobs.json`. Without Telegram, the digest prints in the terminal. Without a Gemini or Anthropic key, only keyword scores are used.
 
 ---
 
@@ -78,11 +78,13 @@ Columns: date found, company, title, link, location, source, score, reason, stat
 3. Run `npm run telegram:chat-id` and copy the printed `TELEGRAM_CHAT_ID=...` line into `.env`.
 4. Run `npm run telegram:chat-id -- --test` to check that a message arrives.
 
-### 3. Claude scoring (optional)
+### 3. AI scoring (optional)
 
-Set `ANTHROPIC_API_KEY` from console.anthropic.com. Only the top `CLAUDE_MAX_JOBS` new jobs per night (default 40) are sent to Claude. That's usually a few on a normal night, but the first run sees every currently open job.
+Only the top `CLAUDE_MAX_JOBS` new jobs per night (default 40) are sent to AI scoring. That's usually a few on a normal night, but the first run sees every currently open job. If a call fails, the job keeps its keyword score.
 
-The default model is `claude-opus-5-5`. Set `CLAUDE_MODEL=claude-haiku-5-5` for a much cheaper option. If a Claude call fails, the job keeps its keyword score.
+**Gemini (free, used when set):** create a key at aistudio.google.com → **Get API key**, and set `GEMINI_API_KEY`. JobScout picks the newest Gemini flash model your key can use (pin one with `GEMINI_MODEL`). The free tier allows only a few requests a minute, so jobs are scored one at a time, about 7 seconds apart; if the daily free quota runs out, the rest keep their keyword scores. On the free tier Google may use what you send to improve its products: the job ads and `config/profile.md`, which is public in this repo anyway.
+
+**Claude (paid):** set `ANTHROPIC_API_KEY` from console.anthropic.com instead. The API is billed separately from a Claude.ai subscription. The default model is `claude-opus-5-5`; set `CLAUDE_MODEL=claude-haiku-5-5` for a much cheaper option. If both keys are set, Gemini is used.
 
 ### 4. LinkedIn alert emails (optional)
 
@@ -97,9 +99,9 @@ The default model is `claude-opus-5-5`. Set `CLAUDE_MODEL=claude-haiku-5-5` for 
 1. GitHub repo → **Settings → Secrets and variables → Actions → New repository secret**. Add the secrets you use:
    - `SUPABASE_URL`, `SUPABASE_SECRET_KEY`
    - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
-   - `ANTHROPIC_API_KEY`
+   - `GEMINI_API_KEY` (free) or `ANTHROPIC_API_KEY` (paid)
    - `GMAIL_USER`, `GMAIL_APP_PASSWORD`
-2. Optional **Variables** (same page, Variables tab): `CLAUDE_MODEL`, `CLAUDE_MAX_JOBS`, `DIGEST_MIN_SCORE`.
+2. Optional **Variables** (same page, Variables tab): `GEMINI_MODEL`, `CLAUDE_MODEL`, `CLAUDE_MAX_JOBS`, `DIGEST_MIN_SCORE`.
 3. Scheduled workflows only run from the default branch (`master`), so the workflow starts after this branch is merged.
 4. To test it, open the **Actions** tab → **Nightly job scan** → **Run workflow** (tick "Dry run" first if you like).
 
@@ -135,16 +137,16 @@ Requests are polite: at most one request per second per host, and a descriptive 
   - Ads asking for 5+ years are dropped.
   - The title must match a target role, and earlier roles in the list score higher.
   - Small adjustments: Tel Aviv area, junior-friendly wording, your stack in the description, ads asking for 3+ years, and student-only roles.
-- **Claude** (`src/scoring/claude.ts`): reads the full ad and `config/profile.md`, then returns a score and a one-line reason. When available, this replaces the keyword score.
+- **AI** (`src/scoring/gemini.ts`, or `src/scoring/claude.ts`): reads the full ad and `config/profile.md`, then returns a score and a one-line reason. When available, this replaces the keyword score.
 - Only jobs scoring `DIGEST_MIN_SCORE` (default 5) or higher go into the digest. Everything that passed the rules is still stored.
 
 ## Project layout
 
 ```
 config/companies.json     target companies + which job board each uses
-config/profile.md         your profile, used by Claude scoring
+config/profile.md         your profile, used by AI scoring
 src/collectors/           greenhouse, lever, ashby, comeet, linkedinEmail
-src/scoring/              rules.ts (keywords), claude.ts (AI score)
+src/scoring/              rules.ts (keywords), gemini.ts and claude.ts (AI score)
 src/storage/              supabase.ts, localFile.ts (data/jobs.json fallback)
 src/digest/format.ts      morning digest + weekly summary text
 src/notify/telegram.ts    Telegram sender

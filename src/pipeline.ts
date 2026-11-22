@@ -9,6 +9,7 @@ import { collectLinkedInAlerts } from "./collectors/linkedinEmail.js";
 import { dailyDigest, weeklySummary, type RunStats } from "./digest/format.js";
 import { sendTelegram } from "./notify/telegram.js";
 import { scoreMany } from "./scoring/claude.js";
+import { scoreManyGemini } from "./scoring/gemini.js";
 import { scoreByRules } from "./scoring/rules.js";
 import { LocalFileStore } from "./storage/localFile.js";
 import { SupabaseStore } from "./storage/supabase.js";
@@ -99,10 +100,12 @@ export async function runPipeline(opts: RunOptions): Promise<RunStats> {
   const fresh = matched.filter((m) => !existing.has(m.hash)).sort((a, b) => b.score - a.score);
   Logger.info("Filtered", { scanned: all.length, matched: matched.length, new: fresh.length, dropped: drops });
 
-  // 4. Claude scoring (top N by rule score) ----------------------------------
-  if (opts.claude && features.claude && fresh.length) {
+  // 4. AI scoring (top N by rule score): Gemini (free) if set, else Claude ----
+  const ai = features.gemini ? "gemini" : features.claude ? "claude" : null;
+  if (opts.claude && ai && fresh.length) {
     const top = fresh.slice(0, env.CLAUDE_MAX_JOBS);
-    const scores = await scoreMany(top.map((m) => m.job));
+    const jobs = top.map((m) => m.job);
+    const scores = ai === "gemini" ? await scoreManyGemini(jobs) : await scoreMany(jobs);
     for (const [i, s] of scores) {
       const m = top[i];
       if (m) {
@@ -110,7 +113,7 @@ export async function runPipeline(opts: RunOptions): Promise<RunStats> {
         m.reason = s.reason;
       }
     }
-    Logger.info("Claude scored", { scored: scores.size, of: top.length, model: env.CLAUDE_MODEL });
+    Logger.info("AI scored", { provider: ai, scored: scores.size, of: top.length });
   }
 
   // 5. Store ----------------------------------------------------------------
