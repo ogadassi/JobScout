@@ -10,6 +10,7 @@ import { AshbyCollector } from "./ashby.js";
 import { ComeetCollector } from "./comeet.js";
 import { GreenhouseCollector } from "./greenhouse.js";
 import { LeverCollector } from "./lever.js";
+import { SmartRecruitersCollector } from "./smartrecruiters.js";
 import type { CompanyCollector } from "./types.js";
 
 const COLLECTORS: Record<Ats, CompanyCollector> = {
@@ -17,6 +18,7 @@ const COLLECTORS: Record<Ats, CompanyCollector> = {
   lever: new LeverCollector(),
   ashby: new AshbyCollector(),
   comeet: new ComeetCollector(),
+  smartrecruiters: new SmartRecruitersCollector(),
 };
 
 export function loadCompanies(path = "config/companies.json"): Company[] {

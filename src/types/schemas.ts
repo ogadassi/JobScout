@@ -15,14 +15,18 @@ import { z } from "zod";
 // Target companies (config/companies.json)
 // ---------------------------------------------------------------------------
 
-export const AtsSchema = z.enum(["greenhouse", "lever", "ashby", "comeet"]);
+export const AtsSchema = z.enum(["greenhouse", "lever", "ashby", "comeet", "smartrecruiters"]);
 export type Ats = z.infer<typeof AtsSchema>;
 
 export const CompanySchema = z.object({
   name: z.string().min(1),
   ats: AtsSchema,
-  /** Greenhouse/Lever/Ashby board token, or "slug/UID" for Comeet. */
+  /** Greenhouse/Lever/Ashby board token, SmartRecruiters company id, or "slug/UID" for Comeet. */
   board: z.string().min(1),
+  /** Lever only: "eu" for boards on jobs.eu.lever.co (served by api.eu.lever.co). */
+  region: z.enum(["us", "eu"]).optional(),
+  /** SmartRecruiters only: two-letter country code to fetch, e.g. "il" (skips other countries' postings). */
+  country: z.string().length(2).optional(),
   /** Which kinds of teams the company hires for that fit the search. */
   teams: z.array(z.string()).default([]),
   notes: z.string().optional(),
@@ -38,7 +42,7 @@ export const CompanyListSchema = z.object({
 // Normalized job posting (output of every collector)
 // ---------------------------------------------------------------------------
 
-export const SourceSchema = z.enum(["greenhouse", "lever", "ashby", "comeet", "linkedin-email"]);
+export const SourceSchema = z.enum(["greenhouse", "lever", "ashby", "comeet", "smartrecruiters", "linkedin-email"]);
 export type Source = z.infer<typeof SourceSchema>;
 
 export const JobPostingSchema = z.object({

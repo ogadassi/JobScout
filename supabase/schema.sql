@@ -7,7 +7,7 @@ create table if not exists public.jobscout_jobs (
   title           text not null,
   link            text not null,
   location        text,
-  source          text not null,                    -- greenhouse / lever / ashby / comeet / linkedin-email
+  source          text not null,                    -- greenhouse / lever / ashby / comeet / smartrecruiters / linkedin-email
   score           numeric(4,1) not null default 0,  -- 0-10
   reason          text,                             -- one-line reason (Claude, or rule summary)
   status          text not null default 'new'

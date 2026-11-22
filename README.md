@@ -2,7 +2,7 @@
 
 A nightly job-search pipeline for Israel. Each night it:
 
-1. **Collects** open jobs from ~75 Israeli tech companies' public job boards (Greenhouse, Lever, Ashby, Comeet). It can also read LinkedIn job-alert emails from Gmail.
+1. **Collects** open jobs from ~75 Israeli tech companies' public job boards (Greenhouse, Lever, Ashby, Comeet, SmartRecruiters). It can also read LinkedIn job-alert emails from Gmail.
 2. **Filters**: keeps Tel Aviv area, other Israel, or remote-from-Israel jobs. Drops senior, lead and manager roles, and ads asking for 5+ years.
 3. **Scores** each job 0–10. Keyword rules always run. If a Gemini key (free) or an Anthropic key is set, AI also scores each job and writes a one-line reason.
 4. **Dedupes** by a hash of the job URL and **stores** new jobs in Supabase.
@@ -124,6 +124,8 @@ Use one schedule or the other, not both. Both would work, but the second run wou
 `config/companies.json` lists ~75 Israeli companies with support, implementation, customer-success or operations teams, and which job board each uses. All boards were checked live on 2026-11-18.
 
 - **Greenhouse / Lever / Ashby:** `board` is the board name from the company's job-board URL, for example `boards.greenhouse.io/riskified` → `riskified`.
+- **Lever EU:** boards at `jobs.eu.lever.co` (for example Mobileye) need `"region": "eu"`.
+- **SmartRecruiters:** `board` is the company id from `jobs.smartrecruiters.com/<id>`. Add `"country": "il"` to fetch only Israeli postings. The list has no descriptions, so each posting costs one more request.
 - **Comeet:** `board` is `slug/UID` from the company's `comeet.com/jobs/<slug>/<UID>` careers page. Comeet's official Careers API needs a token the company gives its own web developer, so JobScout reads the public hosted careers page instead. The listings are embedded in the page as JSON. That's one request per company per night.
 - Set `"enabled": false` to skip a company. Add new ones the same way. A board that fails is logged and skipped, never fatal.
 
@@ -145,7 +147,7 @@ Requests are polite: at most one request per second per host, and a descriptive 
 ```
 config/companies.json     target companies + which job board each uses
 config/profile.md         your profile, used by AI scoring
-src/collectors/           greenhouse, lever, ashby, comeet, linkedinEmail
+src/collectors/           greenhouse, lever, ashby, comeet, smartrecruiters, linkedinEmail
 src/scoring/              rules.ts (keywords), gemini.ts and claude.ts (AI score)
 src/storage/              supabase.ts, localFile.ts (data/jobs.json fallback)
 src/digest/format.ts      morning digest + weekly summary text

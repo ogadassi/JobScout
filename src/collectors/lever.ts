@@ -1,6 +1,7 @@
 /**
  * Lever Postings API (public, no auth).
  * GET https://api.lever.co/v0/postings/{company}?mode=json
+ * EU-hosted boards (jobs.eu.lever.co) live on api.eu.lever.co: set "region": "eu".
  */
 
 import { z } from "zod";
@@ -33,7 +34,8 @@ export class LeverCollector implements CompanyCollector {
   readonly ats = "lever" as const;
 
   async collect(company: Company): Promise<JobPosting[]> {
-    const raw = await getJson(`https://api.lever.co/v0/postings/${encodeURIComponent(company.board)}?mode=json`);
+    const host = company.region === "eu" ? "api.eu.lever.co" : "api.lever.co";
+    const raw = await getJson(`https://${host}/v0/postings/${encodeURIComponent(company.board)}?mode=json`);
     const postings = z.array(PostingSchema).parse(raw);
     return postings.map((p) => {
       const locs = p.categories?.allLocations?.length ? p.categories.allLocations : [p.categories?.location ?? ""];

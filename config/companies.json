@@ -85,6 +85,8 @@
     { "name": "ControlUp", "ats": "lever", "board": "controlup", "teams": ["support", "solutions", "customer-success"] },
     { "name": "Torq", "ats": "greenhouse", "board": "torq", "teams": ["solutions", "support", "automation"] },
     { "name": "Lightricks", "ats": "greenhouse", "board": "lightricks", "teams": ["support", "operations"] },
-    { "name": "Axon (Carbyne)", "ats": "greenhouse", "board": "axon", "teams": ["support", "solutions"] }
+    { "name": "Axon (Carbyne)", "ats": "greenhouse", "board": "axon", "teams": ["support", "solutions"] },
+    { "name": "Mobileye", "ats": "lever", "board": "mobileye", "region": "eu", "teams": ["it", "support", "implementation"] },
+    { "name": "Check Point", "ats": "smartrecruiters", "board": "CheckPointSoftwareTechnologies2", "country": "il", "teams": ["support", "engineering"] }
   ]
 }

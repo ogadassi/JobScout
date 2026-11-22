@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { extractPositionsJson } from "../src/collectors/comeet.js";
 import { parseAlertText } from "../src/collectors/linkedinEmail.js";
+import { mapSmartRecruitersPosting } from "../src/collectors/smartrecruiters.js";
 import { splitMessage } from "../src/notify/telegram.js";
 import { htmlToText, normalizeUrl, urlHash } from "../src/utils/text.js";
 
@@ -65,4 +66,31 @@ test("parseScore reads Gemini JSON, with or without fences, and clamps the score
   assert.deepEqual(parseScore('```json\n{"score": 12, "reason": "x"}\n```'), { score: 10, reason: "x" });
   assert.equal(parseScore("not json"), null);
   assert.equal(parseScore('{"score": "high"}'), null);
+});
+
+test("SmartRecruiters posting maps to a job with description and public link", () => {
+  const company = { name: "Check Point", ats: "smartrecruiters" as const, board: "CheckPointSoftwareTechnologies2", teams: [], enabled: true };
+  const job = mapSmartRecruitersPosting(
+    company,
+    {
+      id: "744000161053762",
+      name: " AI Engineer ",
+      releasedDate: "2026-11-20T10:00:00.000Z",
+      location: { city: "Tel Aviv-Yafo", country: "il", fullLocation: "Tel Aviv-Yafo, Tel Aviv District, Israel", remote: false },
+      function: { label: "Engineering" },
+    },
+    {
+      postingUrl: "https://jobs.smartrecruiters.com/CheckPointSoftwareTechnologies2/744000161053762-ai-engineer",
+      jobAd: { sections: { companyDescription: { text: "<p>About us</p>" }, jobDescription: { text: "<ul><li>Build agents</li></ul>" } } },
+    },
+  );
+  assert.equal(job.title, "AI Engineer");
+  assert.equal(job.link, "https://jobs.smartrecruiters.com/CheckPointSoftwareTechnologies2/744000161053762-ai-engineer");
+  assert.equal(job.location, "Tel Aviv-Yafo, Tel Aviv District, Israel");
+  assert.equal(job.description, "Build agents");
+  assert.equal(job.department, "Engineering");
+
+  const bare = mapSmartRecruitersPosting(company, { id: "1", name: "Support" });
+  assert.equal(bare.link, "https://jobs.smartrecruiters.com/CheckPointSoftwareTechnologies2/1");
+  assert.equal(bare.description, "");
 });
