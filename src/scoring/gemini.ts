@@ -88,14 +88,23 @@ function call(model: string, job: JobPosting): Promise<Response> {
 export async function scoreWithGemini(job: JobPosting): Promise<ClaudeScore | null> {
   models ??= await candidates();
   let waited = false;
+  let busy = 0;
+  // An overloaded or slow model goes to the back of the list and the next one is tried,
+  // so a model that answers stays first for the rest of the run.
+  const tryNext = (model: string, why: string) => {
+    Logger.warn("Gemini model busy, trying the next one", { model, why, title: job.title });
+    models?.push(models.shift() as string);
+    busy++;
+  };
   while (models.length) {
+    if (busy >= models.length) return null;
     const model = models[0] as string;
     let res: Response;
     try {
       res = await call(model, job);
     } catch (err) {
-      Logger.warn("Gemini call failed", { model, title: job.title, error: String(err) });
-      return null;
+      tryNext(model, String(err));
+      continue;
     }
     if (res.ok) {
       const body = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
@@ -111,6 +120,10 @@ export async function scoreWithGemini(job: JobPosting): Promise<ClaudeScore | nu
       Logger.warn("Gemini rate limit, waiting", { model, seconds: RATE_LIMIT_WAIT_MS / 1000 });
       waited = true;
       await sleep(RATE_LIMIT_WAIT_MS);
+      continue;
+    }
+    if (res.status >= 500) {
+      tryNext(model, `${res.status}`);
       continue;
     }
     if (res.status === 403 || res.status === 404) {
