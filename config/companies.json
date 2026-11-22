@@ -79,6 +79,12 @@
     { "name": "Nayax", "ats": "comeet", "board": "nayax/13.009", "teams": ["support", "operations"] },
     { "name": "Papaya Global", "ats": "comeet", "board": "papayaglobal/16.005", "teams": ["support", "implementation", "operations"] },
     { "name": "Rapyd", "ats": "comeet", "board": "rapyd/73.00E", "teams": ["support", "implementation"] },
-    { "name": "Elementor", "ats": "comeet", "board": "Elementor/A3.00F", "teams": ["support", "customer-success"] }
+    { "name": "Elementor", "ats": "comeet", "board": "Elementor/A3.00F", "teams": ["support", "customer-success"] },
+    { "name": "monday.com", "ats": "ashby", "board": "monday.com", "teams": ["support", "implementation", "customer-success", "automation"] },
+    { "name": "Atera", "ats": "comeet", "board": "atera/63.00B", "teams": ["support", "customer-success", "implementation"] },
+    { "name": "ControlUp", "ats": "lever", "board": "controlup", "teams": ["support", "solutions", "customer-success"] },
+    { "name": "Torq", "ats": "greenhouse", "board": "torq", "teams": ["solutions", "support", "automation"] },
+    { "name": "Lightricks", "ats": "greenhouse", "board": "lightricks", "teams": ["support", "operations"] },
+    { "name": "Axon (Carbyne)", "ats": "greenhouse", "board": "axon", "teams": ["support", "solutions"] }
   ]
 }
