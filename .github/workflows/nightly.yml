@@ -2,8 +2,9 @@ name: Nightly job scan
 
 on:
   schedule:
-    # 03:30 UTC = 05:30 Israel winter time / 06:30 summer time. GitHub may start scheduled runs a few minutes late.
-    - cron: "30 3 * * *"
+    # 22:17 UTC = 00:17 Israel winter time / 01:17 summer time. GitHub often starts scheduled runs hours late
+    # (so far about 8 hours), so this still lands before the morning. An odd minute avoids the top-of-hour rush.
+    - cron: "17 22 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -27,8 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm

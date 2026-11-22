@@ -92,7 +92,7 @@ The default model is `claude-opus-5-5`. Set `CLAUDE_MODEL=claude-haiku-5-5` for 
 
 ### 5. Nightly schedule: GitHub Actions
 
-`.github/workflows/nightly.yml` runs every day at 03:30 UTC (05:30 Israel winter time, 06:30 summer time), so the digest is waiting when you wake up.
+`.github/workflows/nightly.yml` runs every day at 22:17 UTC (00:17 Israel winter time, 01:17 summer time). GitHub often starts scheduled runs hours late, so the run is set just after midnight and the digest is still waiting when you wake up.
 
 1. GitHub repo → **Settings → Secrets and variables → Actions → New repository secret**. Add the secrets you use:
    - `SUPABASE_URL`, `SUPABASE_SECRET_KEY`
@@ -103,7 +103,7 @@ The default model is `claude-opus-5-5`. Set `CLAUDE_MODEL=claude-haiku-5-5` for 
 3. Scheduled workflows only run from the default branch (`master`), so the workflow starts after this branch is merged.
 4. To test it, open the **Actions** tab → **Nightly job scan** → **Run workflow** (tick "Dry run" first if you like).
 
-GitHub emails you if a scheduled run fails. A run takes about 1–2 minutes, well inside the free Actions minutes for a private repo.
+GitHub emails you if a scheduled run fails. A run takes about 1–2 minutes, and Actions minutes are free for public repos.
 
 ### Alternative: Windows Task Scheduler (runs on your PC instead)
 
