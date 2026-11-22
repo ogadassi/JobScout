@@ -7,6 +7,7 @@
 import { collectAll, loadCompanies } from "./collectors/index.js";
 import { collectLinkedInAlerts } from "./collectors/linkedinEmail.js";
 import { dailyDigest, weeklySummary, type RunStats } from "./digest/format.js";
+import { sendEmail, toPlainText } from "./notify/email.js";
 import { sendTelegram } from "./notify/telegram.js";
 import { scoreMany } from "./scoring/claude.js";
 import { scoreManyGemini } from "./scoring/gemini.js";
@@ -15,9 +16,9 @@ import { LocalFileStore } from "./storage/localFile.js";
 import { SupabaseStore } from "./storage/supabase.js";
 import type { JobStore, NewJobRow } from "./storage/types.js";
 import type { JobPosting, JobRow } from "./types/schemas.js";
-import { env, features } from "./utils/config.js";
+import { digestChannel, env, features } from "./utils/config.js";
 import { Logger } from "./utils/logger.js";
-import { decodeEntities, israelDate, israelWeekday, urlHash } from "./utils/text.js";
+import { israelDate, israelWeekday, urlHash } from "./utils/text.js";
 
 export interface RunOptions {
   /** Collect and score, but write nothing and send nothing; print the digest. */
@@ -36,15 +37,19 @@ export function openStore(dryRun: boolean): JobStore {
   return new LocalFileStore("data/jobs.json", dryRun);
 }
 
-/** Sends to Telegram, or prints to the console when Telegram is off / dry run. */
+/**
+ * Sends by email or Telegram (DIGEST_CHANNEL), or prints to the console on a
+ * dry run or when that channel is not configured.
+ */
 async function deliver(html: string, dryRun: boolean, label: string): Promise<void> {
-  if (dryRun || !features.telegram) {
-    const plain = decodeEntities(html.replace(/<a href="([^"]+)">([^<]*)<\/a>/g, "$2: $1").replace(/<[^>]+>/g, ""));
-    console.log(`\n===== ${label} ${dryRun ? "(dry run, not sent)" : "(Telegram not configured, not sent)"} =====\n${plain}\n`);
+  if (dryRun || !digestChannel) {
+    const why = dryRun ? "dry run, not sent" : `${env.DIGEST_CHANNEL} not configured, not sent`;
+    console.log(`\n===== ${label} (${why}) =====\n${toPlainText(html)}\n`);
     return;
   }
-  await sendTelegram(html);
-  Logger.info(`${label} sent to Telegram`);
+  if (digestChannel === "email") await sendEmail(html);
+  else await sendTelegram(html);
+  Logger.info(`${label} sent by ${digestChannel}`);
 }
 
 export async function runWeekly(store: JobStore, dryRun: boolean): Promise<void> {
@@ -150,7 +155,7 @@ export async function runPipeline(opts: RunOptions): Promise<RunStats> {
       : await store.pendingDigest(env.DIGEST_MIN_SCORE, env.DIGEST_SIZE);
     const followUps = await store.followUpsDue(today);
     await deliver(dailyDigest(today, digestJobs, followUps, stats), opts.dryRun, "Morning digest");
-    if (!opts.dryRun && (features.telegram || store instanceof LocalFileStore)) {
+    if (!opts.dryRun && (digestChannel || store instanceof LocalFileStore)) {
       await store.markDigested(digestJobs.map((j) => j.url_hash));
     }
   }

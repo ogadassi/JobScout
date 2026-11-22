@@ -3,7 +3,7 @@
  *
  * The only module that reads `process.env`. Every setting is optional so the
  * pipeline can run with whatever is configured: no Supabase -> local JSON file,
- * no Telegram -> digest printed to the console, no Gemini or Anthropic key ->
+ * no email or Telegram -> digest printed to the console, no Gemini or Anthropic key ->
  * rule-based scores only.
  *
  * Uses Node's built-in `process.loadEnvFile()` (Node 20.12+), which replaces
@@ -24,6 +24,17 @@ const EnvSchema = z.object({
   SUPABASE_URL: optional,
   SUPABASE_SECRET_KEY: optional,
   SUPABASE_TABLE: z.preprocess((v) => (v === "" ? undefined : v), z.string().default("jobscout_jobs")),
+
+  /** Where the digest goes: "email" (default) or "telegram". */
+  DIGEST_CHANNEL: z.preprocess((v) => (v === "" ? undefined : v), z.enum(["email", "telegram"]).default("email")),
+
+  /** Email digest over SMTP. Defaults are Gmail's; use a Gmail app password. */
+  SMTP_HOST: z.preprocess((v) => (v === "" ? undefined : v), z.string().default("smtp.gmail.com")),
+  SMTP_PORT: intWithDefault(465),
+  SMTP_USER: optional,
+  SMTP_PASSWORD: optional,
+  /** Who gets the digest; several addresses can be separated by commas. */
+  DIGEST_EMAIL_TO: optional,
 
   TELEGRAM_BOT_TOKEN: optional,
   TELEGRAM_CHAT_ID: optional,
@@ -58,8 +69,12 @@ export const env = Object.freeze(parsed.data);
 
 export const features = Object.freeze({
   supabase: Boolean(env.SUPABASE_URL && env.SUPABASE_SECRET_KEY),
+  email: Boolean(env.SMTP_USER && env.SMTP_PASSWORD && env.DIGEST_EMAIL_TO),
   telegram: Boolean(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID),
   gemini: Boolean(env.GEMINI_API_KEY),
   claude: Boolean(env.ANTHROPIC_API_KEY),
   linkedinEmail: Boolean(env.GMAIL_USER && env.GMAIL_APP_PASSWORD),
 });
+
+/** The digest channel picked by DIGEST_CHANNEL, if it is configured; null = print to the console. */
+export const digestChannel: "email" | "telegram" | null = features[env.DIGEST_CHANNEL] ? env.DIGEST_CHANNEL : null;

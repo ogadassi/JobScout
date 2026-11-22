@@ -2,7 +2,7 @@
   "name": "jobscout",
   "version": "2.0.0",
   "private": true,
-  "description": "Nightly job-search pipeline: collects jobs from Israeli company job boards, scores them, stores them in Supabase and sends a Telegram digest.",
+  "description": "Nightly job-search pipeline: collects jobs from Israeli company job boards, scores them, stores them in Supabase and sends an email (or Telegram) digest.",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -21,11 +21,13 @@
     "@supabase/supabase-js": "^2.119.0",
     "imapflow": "^2.12.1",
     "mailparser": "^3.14.5",
+    "nodemailer": "^10.6.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/mailparser": "^3.9.0",
     "@types/node": "^25.6.0",
+    "@types/nodemailer": "^8.0.2",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3"
   }
