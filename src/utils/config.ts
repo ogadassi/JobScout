@@ -35,6 +35,10 @@ const EnvSchema = z.object({
   SMTP_PASSWORD: optional,
   /** Who gets the digest; several addresses can be separated by commas. */
   DIGEST_EMAIL_TO: optional,
+  /** Who may send reply commands (comma-separated). Default: DIGEST_EMAIL_TO and SMTP_USER. */
+  COMMAND_SENDERS: optional,
+  /** IMAP server of the SMTP_USER mailbox, read for reply commands. */
+  IMAP_HOST: z.preprocess((v) => (v === "" ? undefined : v), z.string().default("imap.gmail.com")),
 
   TELEGRAM_BOT_TOKEN: optional,
   TELEGRAM_CHAT_ID: optional,
@@ -46,8 +50,10 @@ const EnvSchema = z.object({
 
   ANTHROPIC_API_KEY: optional,
   CLAUDE_MODEL: z.preprocess((v) => (v === "" ? undefined : v), z.string().default("claude-opus-5-5")),
-  /** Max new jobs per run sent to AI scoring (Gemini or Claude). */
+  /** Max jobs per run sent to AI scoring (Gemini or Claude): new jobs first, then apply-kit backfill. */
   CLAUDE_MAX_JOBS: intWithDefault(40),
+  /** Of that budget, how many already-stored open jobs get their apply kit filled in per run. */
+  KIT_BACKFILL_PER_RUN: intWithDefault(15),
 
   GMAIL_USER: optional,
   GMAIL_APP_PASSWORD: optional,

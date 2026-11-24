@@ -7,7 +7,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { z } from "zod";
 import { JobRowSchema, type JobRow } from "../types/schemas.js";
-import type { JobStore, NewJobRow } from "./types.js";
+import { israelDate } from "../utils/text.js";
+import type { JobPatch, JobStore, KitUpdate, NewJobRow } from "./types.js";
 
 export class LocalFileStore implements JobStore {
   readonly name: string;
@@ -58,5 +59,39 @@ export class LocalFileStore implements JobStore {
 
   async activitySince(date: string): Promise<JobRow[]> {
     return this.rows.filter((r) => r.date_found >= date || (r.applied_date !== null && r.applied_date >= date));
+  }
+
+  async needsKit(hashes: string[]): Promise<Set<string>> {
+    const set = new Set(hashes);
+    return new Set(
+      this.rows.filter((r) => set.has(r.url_hash) && (r.status === "new" || r.status === "starred") && !r.cv_variant).map((r) => r.url_hash),
+    );
+  }
+
+  async updateKits(updates: KitUpdate[]): Promise<void> {
+    for (const u of updates) {
+      const row = this.rows.find((r) => r.url_hash === u.url_hash);
+      if (row) Object.assign(row, u);
+    }
+    this.save();
+  }
+
+  async findById(shortId: string): Promise<JobRow[]> {
+    return this.rows.filter((r) => r.url_hash.startsWith(shortId)).slice(0, 5);
+  }
+
+  async update(urlHash: string, patch: JobPatch): Promise<JobRow> {
+    const row = this.rows.find((r) => r.url_hash === urlHash);
+    if (!row) throw new Error(`No job ${urlHash}`);
+    Object.assign(row, patch);
+    // Same rule as the Supabase trigger: applying fills the applied and follow-up dates.
+    if (row.status === "applied" && !row.applied_date) row.applied_date = israelDate();
+    if (row.applied_date && !row.follow_up_date) row.follow_up_date = israelDate(7, new Date(`${row.applied_date}T12:00:00Z`));
+    this.save();
+    return row;
+  }
+
+  async active(): Promise<JobRow[]> {
+    return this.rows.filter((r) => ["starred", "applied", "replied", "interview"].includes(r.status));
   }
 }

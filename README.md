@@ -2,17 +2,18 @@
 
 A nightly job-search pipeline for Israel. Each night it:
 
-1. **Collects** open jobs from ~75 Israeli tech companies' public job boards (Greenhouse, Lever, Ashby, Comeet, SmartRecruiters). It can also read LinkedIn job-alert emails from Gmail.
+1. **Collects** open jobs from ~85 Israeli tech companies' public job boards (Greenhouse, Lever, Ashby, Comeet, SmartRecruiters). It can also read LinkedIn job-alert emails from Gmail.
 2. **Filters**: keeps Tel Aviv area, other Israel, or remote-from-Israel jobs. Drops senior, lead and manager roles, and ads asking for 5+ years.
-3. **Scores** each job 0–10. Keyword rules always run. If a Gemini key (free) or an Anthropic key is set, AI also scores each job and writes a one-line reason.
+3. **Scores** each job 0–10. Keyword rules always run. If a Gemini key (free) or an Anthropic key is set, AI also scores each job, writes a one-line reason, picks which CV version to send and drafts a one-line opener (the **apply kit**).
 4. **Dedupes** by a hash of the job URL and **stores** new jobs in Supabase.
 5. **Sends** a morning digest by email (or Telegram) with the top 10 new jobs and any follow-ups due. On Thursdays it also sends a weekly summary.
+6. **Listens** for replies: you, or an assistant that reads your email, reply with lines like `applied 3f9c2` and JobScout updates the job and confirms by email (every 2 hours, and before each nightly run).
 
-You handle applications and referrals yourself. JobScout only finds and ranks jobs.
+You (or your assistant) send the applications. JobScout finds, ranks and tracks them.
 
 > **LinkedIn:** JobScout never visits, scrapes or automates linkedin.com (LinkedIn User Agreement section 8.2). The optional LinkedIn source only reads the alert emails LinkedIn already sends you, in read-only mode.
 
-Target roles, highest first: Technical Support Engineer, Implementation / Integration / Onboarding Engineer, Customer Success Engineer, AI automation / internal tools, then junior full-stack. To change them, edit `src/scoring/rules.ts` (keywords) and `config/profile.md` (what Claude is told about you).
+Target roles, highest first: Technical Support Engineer, Implementation / Integration / Onboarding Engineer, Customer Success Engineer, AI automation / internal tools, then junior full-stack. To change them, edit `src/scoring/rules.ts` (keywords) and `config/profile.md` (what the AI scorer is told about you, including your CV versions and the facts an opener may use).
 
 ---
 
@@ -63,13 +64,13 @@ Create a free Supabase project (or reuse one you have), then run `supabase/schem
 - `SUPABASE_URL`: Project Settings → Data API → the project URL (`https://<your-project>.supabase.co`)
 - `SUPABASE_SECRET_KEY`: Project Settings → API Keys → the **secret** key (`sb_secret_…`) or the legacy `service_role` key. Row-level security is on, so the public key can't read the table.
 
-**Working with the table:** open Table Editor → `jobscout_jobs` and change `status` as you go: `new` → `starred` / `applied` / `replied` / `interview` / `rejected`.
+**Working with the table:** reply commands (below) do this for you. By hand: open Table Editor → `jobscout_jobs` and change `status`: `new` → `starred` / `applied` / `replied` / `interview` / `rejected` / `skipped`.
 
 - Setting `applied` fills `applied_date` (today) and `follow_up_date` (+7 days) automatically.
 - The digest lists follow-ups that are due.
 - `notes` is free text for you.
 
-Columns: date found, company, title, link, location, source, score, reason, status, applied date, follow-up date, notes.
+Columns: date found, company, title, link, location, source, score, reason, status, applied date, follow-up date, notes, CV version, opener.
 
 ### 2. Morning digest: email (default) or Telegram
 
@@ -88,6 +89,25 @@ Columns: date found, company, title, link, location, source, score, reason, stat
 2. Send your new bot any message, for example "hi".
 3. Run `npm run telegram:chat-id` and copy the printed `TELEGRAM_CHAT_ID=...` line into `.env`.
 4. Run `npm run telegram:chat-id -- --test` to check that a message arrives.
+
+**Managing applications by email.** Each job in an email shows a 5-character id in [brackets]. Reply to any JobScout email (or send one with "JobScout" in the subject) to the `SMTP_USER` address, one command per line:
+
+| Command | What it does |
+|---|---|
+| `applied 3f9c2` (or `applied 3f9c2 2026-11-20`) | Marks it applied and sets a follow-up 7 days later |
+| `interview 3f9c2 2026-12-03 phone screen` | Interview on that date; the date becomes the reminder |
+| `replied 3f9c2` / `rejected 3f9c2` | They answered / they said no |
+| `skip 3f9c2` (or `not for me 3f9c2`) | Not a fit; it stops appearing |
+| `star 3f9c2` / `unstar 3f9c2` | Shortlist |
+| `note 3f9c2 recruiter is Dana` | Adds a dated note |
+| `follow up 3f9c2 2026-12-10` | Sets the reminder date |
+| `list` / `help` | Everything in progress / this list |
+
+Text that isn't a command, and the quoted email below your reply, are ignored. A confirmation email lists every change.
+
+- Commands are read from the `SMTP_USER` inbox over IMAP (same app password). JobScout only looks at mail from the last 14 days with "JobScout" in the subject, and labels what it handled `JobScout-done` so nothing is applied twice.
+- Only senders in `COMMAND_SENDERS` count (default: `DIGEST_EMAIL_TO` and `SMTP_USER`), and only when Gmail recorded a DKIM or SPF pass for the sender's domain, so a forged From: line is ignored.
+- If a run fails, an email says so.
 
 ### 3. AI scoring (optional)
 
@@ -113,11 +133,14 @@ Only the top `CLAUDE_MAX_JOBS` new jobs per night (default 40) are sent to AI sc
    - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (only for the Telegram digest)
    - `GEMINI_API_KEY` (free) or `ANTHROPIC_API_KEY` (paid)
    - `GMAIL_USER`, `GMAIL_APP_PASSWORD`
-2. Optional **Variables** (same page, Variables tab): `DIGEST_CHANNEL` (`email` or `telegram`), `SMTP_HOST`, `SMTP_PORT`, `GEMINI_MODEL`, `CLAUDE_MODEL`, `CLAUDE_MAX_JOBS`, `DIGEST_MIN_SCORE`.
+   - `COMMAND_SENDERS` (optional: who may send reply commands)
+2. Optional **Variables** (same page, Variables tab): `DIGEST_CHANNEL` (`email` or `telegram`), `SMTP_HOST`, `SMTP_PORT`, `IMAP_HOST`, `GEMINI_MODEL`, `CLAUDE_MODEL`, `CLAUDE_MAX_JOBS`, `KIT_BACKFILL_PER_RUN`, `DIGEST_MIN_SCORE`.
 3. Scheduled workflows only run from the default branch (`master`), so the workflow starts after this branch is merged.
 4. To test it, open the **Actions** tab → **Nightly job scan** → **Run workflow** (tick "Dry run" first if you like).
 
-GitHub emails you if a scheduled run fails. A run takes about 1–2 minutes, and Actions minutes are free for public repos.
+`.github/workflows/inbox.yml` applies reply commands every 2 hours.
+
+GitHub emails you if a scheduled run fails, and JobScout emails the digest address too. A run takes about 1–2 minutes, and Actions minutes are free for public repos.
 
 ### Alternative: Windows Task Scheduler (runs on your PC instead)
 
@@ -151,7 +174,7 @@ Requests are polite: at most one request per second per host, and a descriptive 
   - Ads asking for 5+ years are dropped.
   - The title must match a target role, and earlier roles in the list score higher.
   - Small adjustments: Tel Aviv area, junior-friendly wording, your stack in the description, ads asking for 3+ years, and student-only roles.
-- **AI** (`src/scoring/gemini.ts`, or `src/scoring/claude.ts`): reads the full ad and `config/profile.md`, then returns a score and a one-line reason. When available, this replaces the keyword score.
+- **AI** (`src/scoring/gemini.ts`, or `src/scoring/claude.ts`): reads the full ad and `config/profile.md`, then returns a score, a one-line reason, the CV version to send (support / implementation / automation / full-stack) and a one-line opener built only from facts in the profile. When available, this replaces the keyword score. Open jobs stored before the apply kit existed get one a few at a time (`KIT_BACKFILL_PER_RUN`, default 15) while their ads are still up.
 - Only jobs scoring `DIGEST_MIN_SCORE` (default 5) or higher go into the digest. Everything that passed the rules is still stored.
 
 ## Project layout
@@ -165,8 +188,9 @@ src/storage/              supabase.ts, localFile.ts (data/jobs.json fallback)
 src/digest/format.ts      morning digest + weekly summary text
 src/notify/email.ts       email sender (SMTP)
 src/notify/telegram.ts    Telegram sender
+src/inbox/                reply commands: commands.ts (parse + apply), mailbox.ts (IMAP, sender checks)
 src/pipeline.ts           the nightly run, step by step
 src/index.ts              command-line entry point
 supabase/schema.sql       table + auto follow-up-date trigger
-.github/workflows/        nightly GitHub Actions schedule
+.github/workflows/        nightly run + inbox commands every 2 hours
 ```

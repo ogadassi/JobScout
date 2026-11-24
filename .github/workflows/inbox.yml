@@ -1,0 +1,42 @@
+name: Inbox commands
+
+# Applies reply commands ("applied 3f9c2", "skip 7ab10", ...) sent by you or your
+# assistant in reply to a JobScout email, and answers each sender with a confirmation.
+# The nightly run does this too; this keeps changes moving during the day.
+on:
+  schedule:
+    # Every 2 hours, at an odd minute (GitHub may start scheduled runs late).
+    - cron: "41 */2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jobscout
+  cancel-in-progress: false
+
+jobs:
+  inbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Apply reply commands
+        run: npm run inbox
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          DIGEST_CHANNEL: ${{ vars.DIGEST_CHANNEL }}
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_PORT: ${{ vars.SMTP_PORT }}
+          IMAP_HOST: ${{ vars.IMAP_HOST }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          DIGEST_EMAIL_TO: ${{ secrets.DIGEST_EMAIL_TO }}
+          COMMAND_SENDERS: ${{ secrets.COMMAND_SENDERS }}

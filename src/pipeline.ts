@@ -7,6 +7,7 @@
 import { collectAll, loadCompanies } from "./collectors/index.js";
 import { collectLinkedInAlerts } from "./collectors/linkedinEmail.js";
 import { dailyDigest, weeklySummary, type RunStats } from "./digest/format.js";
+import { processInbox } from "./inbox/mailbox.js";
 import { sendEmail, toPlainText } from "./notify/email.js";
 import { sendTelegram } from "./notify/telegram.js";
 import { scoreMany } from "./scoring/claude.js";
@@ -14,7 +15,7 @@ import { scoreManyGemini } from "./scoring/gemini.js";
 import { scoreByRules } from "./scoring/rules.js";
 import { LocalFileStore } from "./storage/localFile.js";
 import { SupabaseStore } from "./storage/supabase.js";
-import type { JobStore, NewJobRow } from "./storage/types.js";
+import type { JobStore, KitUpdate, NewJobRow } from "./storage/types.js";
 import type { JobPosting, JobRow } from "./types/schemas.js";
 import { digestChannel, env, features } from "./utils/config.js";
 import { Logger } from "./utils/logger.js";
@@ -64,6 +65,15 @@ export async function runPipeline(opts: RunOptions): Promise<RunStats> {
   const store = openStore(opts.dryRun);
   Logger.info("Run started", { store: store.name, ...features, dryRun: opts.dryRun });
 
+  // 0. Reply commands first, so tonight's digest and follow-ups see them ----
+  if (!opts.dryRun && features.email) {
+    try {
+      await processInbox(store);
+    } catch (err) {
+      Logger.warn("Inbox check failed; continuing", { error: String(err) });
+    }
+  }
+
   // 1. Collect --------------------------------------------------------------
   let companies = loadCompanies();
   if (opts.only?.length) {
@@ -86,7 +96,7 @@ export async function runPipeline(opts: RunOptions): Promise<RunStats> {
   // 2. Rules + in-run dedupe ------------------------------------------------
   const drops = { location: 0, seniority: 0, "no-role-match": 0 };
   const seen = new Set<string>();
-  const matched: { job: JobPosting; hash: string; score: number; reason: string }[] = [];
+  const matched: { job: JobPosting; hash: string; score: number; reason: string; cv?: string; pitch?: string }[] = [];
   for (const job of all) {
     const r = scoreByRules(job);
     if (!r.keep) {
@@ -105,20 +115,34 @@ export async function runPipeline(opts: RunOptions): Promise<RunStats> {
   const fresh = matched.filter((m) => !existing.has(m.hash)).sort((a, b) => b.score - a.score);
   Logger.info("Filtered", { scanned: all.length, matched: matched.length, new: fresh.length, dropped: drops });
 
-  // 4. AI scoring (top N by rule score): Gemini (free) if set, else Claude ----
+  // 4. AI scoring + apply kit: Gemini (free) if set, else Claude --------------
+  // New jobs first (top N by rule score). Leftover budget fills in the apply kit for
+  // open jobs stored before it existed, a few each night, while their ads are still up.
   const ai = features.gemini ? "gemini" : features.claude ? "claude" : null;
-  if (opts.claude && ai && fresh.length) {
+  const kitUpdates: KitUpdate[] = [];
+  if (opts.claude && ai) {
     const top = fresh.slice(0, env.CLAUDE_MAX_JOBS);
-    const jobs = top.map((m) => m.job);
-    const scores = ai === "gemini" ? await scoreManyGemini(jobs) : await scoreMany(jobs);
-    for (const [i, s] of scores) {
-      const m = top[i];
-      if (m) {
+    const room = env.CLAUDE_MAX_JOBS - top.length;
+    const stored = matched.filter((m) => existing.has(m.hash));
+    const lacking = room > 0 && stored.length && !opts.dryRun ? await store.needsKit(stored.map((m) => m.hash)) : new Set<string>();
+    const backfill = stored.filter((m) => lacking.has(m.hash)).slice(0, Math.min(room, env.KIT_BACKFILL_PER_RUN));
+    const batch = [...top, ...backfill];
+    if (batch.length) {
+      const jobs = batch.map((m) => m.job);
+      const scores = ai === "gemini" ? await scoreManyGemini(jobs) : await scoreMany(jobs);
+      for (const [i, s] of scores) {
+        const m = batch[i];
+        if (!m) continue;
         m.score = s.score;
         m.reason = s.reason;
+        m.cv = s.cv;
+        m.pitch = s.opener;
+        if (i >= top.length) {
+          kitUpdates.push({ url_hash: m.hash, score: s.score, reason: s.reason, cv_variant: s.cv ?? null, pitch: s.opener ?? null });
+        }
       }
+      Logger.info("AI scored", { provider: ai, scored: scores.size, of: batch.length, newJobs: top.length, backfill: backfill.length });
     }
-    Logger.info("AI scored", { provider: ai, scored: scores.size, of: top.length });
   }
 
   // 5. Store ----------------------------------------------------------------
@@ -133,8 +157,13 @@ export async function runPipeline(opts: RunOptions): Promise<RunStats> {
     source: m.job.source,
     score: m.score,
     reason: m.reason,
+    cv_variant: m.cv ?? null,
+    pitch: m.pitch ?? null,
   }));
-  if (!opts.dryRun) await store.insert(newRows);
+  if (!opts.dryRun) {
+    await store.insert(newRows);
+    if (kitUpdates.length) await store.updateKits(kitUpdates);
+  }
 
   const stats: RunStats = {
     companies: companies.length,
