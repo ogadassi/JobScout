@@ -2,7 +2,7 @@
 
 A nightly job-search pipeline for Israel. Each night it:
 
-1. **Collects** open jobs from ~85 Israeli tech companies' public job boards (Greenhouse, Lever, Ashby, Comeet, SmartRecruiters). It can also read LinkedIn job-alert emails from Gmail.
+1. **Collects** open jobs from ~145 Israeli tech companies' public job boards (Greenhouse, Lever, Ashby, Comeet, SmartRecruiters). It can also read LinkedIn job-alert emails from Gmail.
 2. **Filters**: keeps Tel Aviv area, other Israel, or remote-from-Israel jobs. Drops senior, lead and manager roles, and ads asking for 5+ years.
 3. **Scores** each job 0–10. Keyword rules always run. If a Gemini key (free) or an Anthropic key is set, AI also scores each job, writes a one-line reason, picks which CV version to send and drafts a one-line opener (the **apply kit**).
 4. **Dedupes** by a hash of the job URL and **stores** new jobs in Supabase.
@@ -156,7 +156,7 @@ Use one schedule or the other, not both. Both would work, but the second run wou
 
 ## Target companies
 
-`config/companies.json` lists ~75 Israeli companies with support, implementation, customer-success or operations teams, and which job board each uses. All boards were checked live on 2026-11-18.
+`config/companies.json` lists ~145 Israeli companies with support, implementation, customer-success or operations teams, and which job board each uses. Boards were checked live on 2026-11-18, and 62 more on 2026-11-24.
 
 - **Greenhouse / Lever / Ashby:** `board` is the board name from the company's job-board URL, for example `boards.greenhouse.io/riskified` → `riskified`.
 - **Lever EU:** boards at `jobs.eu.lever.co` (for example Mobileye) need `"region": "eu"`.
