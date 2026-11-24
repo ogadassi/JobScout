@@ -8,11 +8,6 @@ on:
     # Every 2 hours, at an odd minute (GitHub may start scheduled runs late).
     - cron: "41 */2 * * *"
   workflow_dispatch:
-    inputs:
-      debug:
-        description: "Only show how Gmail presents recent command emails (read-only)"
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -33,7 +28,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Apply reply commands
-        run: ${{ inputs.debug && 'npx tsx scripts/inbox-debug.ts' || 'npm run inbox' }}
+        run: npm run inbox
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
