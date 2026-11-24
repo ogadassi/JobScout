@@ -51,7 +51,7 @@ export function senderAuthenticated(authResults: string, from: string): boolean 
  */
 export function sentByMailbox(from: string, labels: Set<string> | undefined, mailbox: string | undefined): boolean {
   if (!mailbox || from !== mailbox.toLowerCase()) return false;
-  return labels?.has("\Sent") ?? false;
+  return labels?.has(String.raw`\Sent`) ?? false;
 }
 
 function header(mail: ParsedMail, name: string): string {

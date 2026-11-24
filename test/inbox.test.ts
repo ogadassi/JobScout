@@ -42,11 +42,13 @@ test("Only DKIM or SPF passes for the sender's own domain count", () => {
 
 test("Mail the account sent to itself counts only when Gmail filed it under Sent", () => {
   const me = "me@gmail.com";
-  assert.equal(sentByMailbox(me, new Set(["\Sent", "\Inbox"]), "Me@Gmail.com"), true);
-  assert.equal(sentByMailbox(me, new Set(["\Inbox"]), me), false);
+  const sent = String.raw`\Sent`;
+  const inbox = String.raw`\Inbox`;
+  assert.equal(sentByMailbox(me, new Set([sent, inbox]), "Me@Gmail.com"), true);
+  assert.equal(sentByMailbox(me, new Set([inbox]), me), false);
   assert.equal(sentByMailbox(me, undefined, me), false);
-  assert.equal(sentByMailbox("other@gmail.com", new Set(["\Sent"]), me), false);
-  assert.equal(sentByMailbox(me, new Set(["\Sent"]), undefined), false);
+  assert.equal(sentByMailbox("other@gmail.com", new Set([sent]), me), false);
+  assert.equal(sentByMailbox(me, new Set([sent]), undefined), false);
 });
 
 test("Commands update the store: applied sets dates, ambiguous ids are refused", async () => {
@@ -95,4 +97,11 @@ test("The digest shows each job's id, CV pick, opener and the reply commands", (
   assert.match(html, /CV: Support Engineer/);
   assert.match(html, /Opener: "I kept a city running\."/);
   assert.match(html, /Reply to this email to update jobs/);
+});
+
+test("The Sent check matches the label exactly as Gmail returns it", () => {
+  // Gmail's X-GM-LABELS for a message the account sent: a backslash, then "Sent".
+  const fromGmail = new Set([String.raw`\Sent`, "JobScout-done"]);
+  assert.equal(sentByMailbox("me@gmail.com", fromGmail, "me@gmail.com"), true);
+  assert.equal(sentByMailbox("me@gmail.com", new Set(["Sent"]), "me@gmail.com"), false);
 });
