@@ -37,9 +37,11 @@ Rate fit from 0 to 10:
 Reply with the score and one short reason line written to the job seeker (no preamble).
 
 Also pick which of their CV versions to send (cv: support, implementation, automation or fullstack;
-see "CV versions" in the profile), and write an opener: one or two sentences, first person, that the
-job seeker could start a cover note or recruiter message with. Tie one real fact from the profile to
-what this ad asks for. Never invent experience, numbers or skills that are not in the profile.
+see "CV versions" in the profile), and write an opener: ONE sentence, at most 30 words, first person,
+that the job seeker could start a recruiter message with. Name one concrete item from "Facts an opener
+may use" (a project, a number, a role) and tie it to one thing this ad asks for. Plain and specific:
+no "I am eager", "I would love", "I excel", "passionate", "strong foundation". Use only facts listed
+in the profile; never add skills, tools or experience that are not written there.
 
 Job seeker profile:
 ${readFileSync("config/profile.md", "utf8")}`;

@@ -81,7 +81,7 @@ function call(model: string, job: JobPosting): Promise<Response> {
       systemInstruction: {
         parts: [
           {
-            text: `${SYSTEM}\n\nReply with JSON only, exactly: {"score": <number 0-10>, "reason": "<one short line>", "cv": "<support|implementation|automation|fullstack>", "opener": "<one or two sentences>"}`,
+            text: `${SYSTEM}\n\nReply with JSON only, exactly: {"score": <number 0-10>, "reason": "<one short line>", "cv": "<support|implementation|automation|fullstack>", "opener": "<one sentence, max 30 words>"}`,
           },
         ],
       },
