@@ -5,7 +5,9 @@
  *   - the subject contains "JobScout" (replies to the digest keep it),
  *   - the sender is on COMMAND_SENDERS (default: DIGEST_EMAIL_TO and SMTP_USER),
  *   - Gmail's own Authentication-Results say DKIM or SPF passed for the sender's
- *     domain, so a forged From: address is not enough,
+ *     domain, so a forged From: address is not enough. Mail the account sent to
+ *     itself has no Authentication-Results; it counts when Gmail also filed it under
+ *     Sent, which only the account itself can do (see sentByMailbox),
  *   - it is not one of JobScout's own emails (they carry an X-JobScout header).
  * A handled message gets the Gmail label "JobScout-done", so it is never applied twice,
  * even if someone has already opened it. Each sender gets one confirmation email
@@ -42,6 +44,16 @@ export function senderAuthenticated(authResults: string, from: string): boolean 
   return [...dkim, ...spf].some(aligned);
 }
 
+/**
+ * True when the message was sent from the mailbox JobScout reads: the sender is
+ * SMTP_USER and Gmail labelled the message \Sent. Gmail adds no Authentication-Results
+ * to mail an account sends to itself, so senderAuthenticated() can't vouch for it.
+ */
+export function sentByMailbox(from: string, labels: Set<string> | undefined, mailbox: string | undefined): boolean {
+  if (!mailbox || from !== mailbox.toLowerCase()) return false;
+  return labels?.has("\Sent") ?? false;
+}
+
 function header(mail: ParsedMail, name: string): string {
   const v = mail.headers.get(name);
   if (v === undefined || v === null) return "";
@@ -76,7 +88,7 @@ export async function processInbox(store: JobStore): Promise<InboxResult> {
       // Gmail search syntax: recent JobScout mail not yet handled.
       const uids = await client.search({ gmraw: `subject:JobScout newer_than:14d -label:${DONE_LABEL.toLowerCase()}` }, { uid: true });
       for (const uid of uids || []) {
-        const msg = await client.fetchOne(String(uid), { source: true }, { uid: true });
+        const msg = await client.fetchOne(String(uid), { source: true, labels: true }, { uid: true });
         if (!msg || !msg.source) continue;
         const mail = await simpleParser(msg.source);
         const from = mail.from?.value[0]?.address?.toLowerCase() ?? "";
@@ -93,10 +105,15 @@ export async function processInbox(store: JobStore): Promise<InboxResult> {
           await done();
           continue;
         }
-        if (!senderAuthenticated(header(mail, "authentication-results"), from)) {
+        if (!senderAuthenticated(header(mail, "authentication-results"), from) && !sentByMailbox(from, msg.labels, env.SMTP_USER)) {
           Logger.warn("Inbox: sender failed DKIM/SPF, ignored", { from });
           result.rejected++;
           await done();
+          // Tell the mailbox owner (never the From: address, which may be forged).
+          await sendEmail(`<p>JobScout ignored a command email from ${escapeHtml(from)} ("${escapeHtml(mail.subject ?? "")}"): Gmail couldn't confirm it really came from that address. Nothing was changed. If you sent it, send it again; if it keeps happening, tell Claude.</p>`, {
+            to: env.SMTP_USER,
+            subject: "JobScout: a command email was ignored",
+          }).catch((error) => Logger.warn("Inbox: could not send the ignored-mail notice", { error: String(error) }));
           continue;
         }
         const commands = parseCommands(mail.text ?? "");
