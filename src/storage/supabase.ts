@@ -8,9 +8,10 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { JobRowSchema, type JobRow } from "../types/schemas.js";
 import { env } from "../utils/config.js";
-import type { JobStore, NewJobRow } from "./types.js";
+import type { JobPatch, JobStore, KitUpdate, NewJobRow } from "./types.js";
 
-const COLUMNS = "url_hash,date_found,company,title,link,location,source,score,reason,status,applied_date,follow_up_date,notes,digested_at";
+const COLUMNS =
+  "url_hash,date_found,company,title,link,location,source,score,reason,status,applied_date,follow_up_date,notes,digested_at,cv_variant,pitch";
 
 function rows(data: unknown): JobRow[] {
   return z.array(JobRowSchema).parse(data ?? []);
@@ -83,6 +84,51 @@ export class SupabaseStore implements JobStore {
       .select(COLUMNS)
       .or(`date_found.gte.${date},applied_date.gte.${date},updated_at.gte.${date}`)
       .limit(5000);
+    if (error) throw new Error(`Supabase read failed: ${error.message}`);
+    return rows(data);
+  }
+
+  async needsKit(hashes: string[]): Promise<Set<string>> {
+    const found = new Set<string>();
+    for (let i = 0; i < hashes.length; i += 200) {
+      const { data, error } = await this.db
+        .from(this.table)
+        .select("url_hash")
+        .in("url_hash", hashes.slice(i, i + 200))
+        .in("status", ["new", "starred"])
+        .is("cv_variant", null);
+      if (error) throw new Error(`Supabase read failed: ${error.message}`);
+      for (const r of z.array(z.object({ url_hash: z.string() })).parse(data)) found.add(r.url_hash);
+    }
+    return found;
+  }
+
+  async updateKits(updates: KitUpdate[]): Promise<void> {
+    for (const { url_hash, ...fields } of updates) {
+      const { error } = await this.db.from(this.table).update(fields).eq("url_hash", url_hash);
+      if (error) throw new Error(`Supabase update failed: ${error.message}`);
+    }
+  }
+
+  async findById(shortId: string): Promise<JobRow[]> {
+    const { data, error } = await this.db.from(this.table).select(COLUMNS).like("url_hash", `${shortId}%`).limit(5);
+    if (error) throw new Error(`Supabase read failed: ${error.message}`);
+    return rows(data);
+  }
+
+  async update(urlHash: string, patch: JobPatch): Promise<JobRow> {
+    const { data, error } = await this.db.from(this.table).update(patch).eq("url_hash", urlHash).select(COLUMNS).single();
+    if (error) throw new Error(`Supabase update failed: ${error.message}`);
+    return JobRowSchema.parse(data);
+  }
+
+  async active(): Promise<JobRow[]> {
+    const { data, error } = await this.db
+      .from(this.table)
+      .select(COLUMNS)
+      .in("status", ["starred", "applied", "replied", "interview"])
+      .order("updated_at", { ascending: false })
+      .limit(200);
     if (error) throw new Error(`Supabase read failed: ${error.message}`);
     return rows(data);
   }

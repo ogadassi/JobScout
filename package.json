@@ -11,6 +11,7 @@
     "pipeline": "tsx src/index.ts",
     "pipeline:dry": "tsx src/index.ts --dry-run",
     "weekly": "tsx src/index.ts --weekly-only",
+    "inbox": "tsx src/index.ts --inbox-only",
     "telegram:chat-id": "tsx src/tools/telegramChatId.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"test/**/*.test.ts\""

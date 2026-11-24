@@ -11,11 +11,13 @@ create table if not exists public.jobscout_jobs (
   score           numeric(4,1) not null default 0,  -- 0-10
   reason          text,                             -- one-line reason (Claude, or rule summary)
   status          text not null default 'new'
-                  check (status in ('new','starred','applied','replied','interview','rejected')),
+                  check (status in ('new','starred','applied','replied','interview','rejected','skipped')),
   applied_date    date,
   follow_up_date  date,
   notes           text,
   digested_at     timestamptz,                      -- when it was sent in a morning digest
+  cv_variant      text,                             -- apply kit: support / implementation / automation / fullstack
+  pitch           text,                             -- apply kit: one-line opener
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
 );
@@ -50,3 +52,10 @@ drop trigger if exists jobscout_jobs_touch on public.jobscout_jobs;
 create trigger jobscout_jobs_touch
   before insert or update on public.jobscout_jobs
   for each row execute function public.jobscout_jobs_touch();
+
+-- Upgrades for tables created before the apply kit and the "skipped" status.
+alter table public.jobscout_jobs add column if not exists cv_variant text;
+alter table public.jobscout_jobs add column if not exists pitch text;
+alter table public.jobscout_jobs drop constraint if exists jobscout_jobs_status_check;
+alter table public.jobscout_jobs add constraint jobscout_jobs_status_check
+  check (status in ('new','starred','applied','replied','interview','rejected','skipped'));

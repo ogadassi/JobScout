@@ -33,20 +33,37 @@ export function toEmail(html: string): EmailParts {
   };
 }
 
-export async function sendEmail(html: string): Promise<void> {
-  if (!env.SMTP_USER || !env.SMTP_PASSWORD || !env.DIGEST_EMAIL_TO) throw new Error("Email is not configured");
+export interface SendOptions {
+  /** Default: DIGEST_EMAIL_TO. */
+  to?: string;
+  /** Default: the first line of the message. */
+  subject?: string;
+  /** Threading, so a confirmation lands under the message it answers. */
+  inReplyTo?: string;
+  references?: string;
+  /** A ready plain-text part; when set, `html` is sent as is (no line-break conversion). */
+  plain?: string;
+}
+
+export async function sendEmail(html: string, opts: SendOptions = {}): Promise<void> {
+  const to = opts.to ?? env.DIGEST_EMAIL_TO;
+  if (!env.SMTP_USER || !env.SMTP_PASSWORD || !to) throw new Error("Email is not configured");
   const transport = nodemailer.createTransport({
     host: env.SMTP_HOST,
     port: env.SMTP_PORT,
     secure: env.SMTP_PORT === 465,
     auth: { user: env.SMTP_USER, pass: env.SMTP_PASSWORD },
   });
-  const { subject, text, html: body } = toEmail(html);
+  const parts = opts.plain ? { subject: "JobScout", text: opts.plain, html } : toEmail(html);
   await transport.sendMail({
     from: `JobScout <${env.SMTP_USER}>`,
-    to: env.DIGEST_EMAIL_TO,
-    subject,
-    text,
-    html: body,
+    to,
+    subject: opts.subject ?? parts.subject,
+    text: parts.text,
+    html: parts.html,
+    inReplyTo: opts.inReplyTo,
+    references: opts.references,
+    // Marks JobScout's own mail, so the inbox reader never treats it as commands.
+    headers: { "X-JobScout": "1" },
   });
 }

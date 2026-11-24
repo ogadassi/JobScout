@@ -11,7 +11,7 @@
 import type { JobPosting } from "../types/schemas.js";
 import { env } from "../utils/config.js";
 import { Logger } from "../utils/logger.js";
-import { type ClaudeScore, jobPrompt, ScoreSchema, SYSTEM } from "./claude.js";
+import { type ClaudeScore, clampScore, jobPrompt, ScoreSchema, SYSTEM } from "./claude.js";
 
 const API = "https://generativelanguage.googleapis.com/v1beta";
 /** Free-tier flash models allow about 10 requests a minute; 6.5 s apart stays under that. */
@@ -61,10 +61,13 @@ export function parseScore(text: string): ClaudeScore | null {
   } catch {
     return null;
   }
+  // An unknown CV name only loses the CV pick, not the score.
+  if (data && typeof data === "object" && "cv" in data && !["support", "implementation", "automation", "fullstack"].includes(String(data.cv))) {
+    delete (data as { cv?: unknown }).cv;
+  }
   const parsed = ScoreSchema.safeParse(data);
   if (!parsed.success) return null;
-  const { score, reason } = parsed.data;
-  return { score: Math.max(0, Math.min(10, Math.round(score * 2) / 2)), reason: reason.trim() };
+  return clampScore(parsed.data);
 }
 
 let models: string[] | null = null;
@@ -76,7 +79,11 @@ function call(model: string, job: JobPosting): Promise<Response> {
     headers: { "content-type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY ?? "" },
     body: JSON.stringify({
       systemInstruction: {
-        parts: [{ text: `${SYSTEM}\n\nReply with JSON only, exactly: {"score": <number 0-10>, "reason": "<one short line>"}` }],
+        parts: [
+          {
+            text: `${SYSTEM}\n\nReply with JSON only, exactly: {"score": <number 0-10>, "reason": "<one short line>", "cv": "<support|implementation|automation|fullstack>", "opener": "<one or two sentences>"}`,
+          },
+        ],
       },
       contents: [{ role: "user", parts: [{ text: jobPrompt(job) }] }],
       generationConfig: { responseMimeType: "application/json" },

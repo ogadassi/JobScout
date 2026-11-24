@@ -11,13 +11,18 @@ import { readFileSync } from "node:fs";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
-import type { JobPosting } from "../types/schemas.js";
+import { CvVariantSchema, type JobPosting } from "../types/schemas.js";
 import { env } from "../utils/config.js";
 import { Logger } from "../utils/logger.js";
 
 export const ScoreSchema = z.object({
   score: z.number().describe("Fit score from 0 (no fit) to 10 (ideal fit)"),
   reason: z.string().describe("One short line (max ~20 words) explaining the score"),
+  cv: CvVariantSchema.optional().describe("Which CV version to send: support, implementation, automation or fullstack"),
+  opener: z
+    .string()
+    .optional()
+    .describe("One or two sentences the job seeker could open a cover note with, using only facts from the profile"),
 });
 export type ClaudeScore = z.infer<typeof ScoreSchema>;
 
@@ -31,10 +36,25 @@ Rate fit from 0 to 10:
 
 Reply with the score and one short reason line written to the job seeker (no preamble).
 
+Also pick which of their CV versions to send (cv: support, implementation, automation or fullstack;
+see "CV versions" in the profile), and write an opener: one or two sentences, first person, that the
+job seeker could start a cover note or recruiter message with. Tie one real fact from the profile to
+what this ad asks for. Never invent experience, numbers or skills that are not in the profile.
+
 Job seeker profile:
 ${readFileSync("config/profile.md", "utf8")}`;
 
 let client: Anthropic | null = null;
+
+/** Rounds the score to the nearest 0.5 within 0-10 and trims the text fields. */
+export function clampScore(s: ClaudeScore): ClaudeScore {
+  return {
+    score: Math.max(0, Math.min(10, Math.round(s.score * 2) / 2)),
+    reason: s.reason.trim(),
+    ...(s.cv ? { cv: s.cv } : {}),
+    ...(s.opener?.trim() ? { opener: s.opener.trim() } : {}),
+  };
+}
 
 /** Description is passed in full; ads are typically 2-8K characters. */
 export function jobPrompt(job: JobPosting): string {
@@ -67,8 +87,7 @@ export async function scoreWithClaude(job: JobPosting): Promise<ClaudeScore | nu
       Logger.warn("Claude gave no score", { title: job.title, stop: res.stop_reason });
       return null;
     }
-    const { score, reason } = res.parsed_output;
-    return { score: Math.max(0, Math.min(10, Math.round(score * 2) / 2)), reason: reason.trim() };
+    return clampScore(res.parsed_output);
   } catch (err) {
     if (err instanceof Anthropic.AuthenticationError) throw err; // bad key: stop scoring entirely
     if (err instanceof Anthropic.APIError) Logger.warn("Claude API error", { status: err.status, title: job.title, error: err.message });

@@ -65,7 +65,7 @@ export type JobPosting = z.infer<typeof JobPostingSchema>;
 // Stored row (Supabase table `jobscout_jobs`, or data/jobs.json locally)
 // ---------------------------------------------------------------------------
 
-export const JobStatusSchema = z.enum(["new", "starred", "applied", "replied", "interview", "rejected"]);
+export const JobStatusSchema = z.enum(["new", "starred", "applied", "replied", "interview", "rejected", "skipped"]);
 export type JobStatus = z.infer<typeof JobStatusSchema>;
 
 export const JobRowSchema = z.object({
@@ -83,5 +83,18 @@ export const JobRowSchema = z.object({
   follow_up_date: z.string().nullable(),
   notes: z.string().nullable().optional(),
   digested_at: z.string().nullable(),
+  /** Apply kit: which CV version fits (support / implementation / automation / fullstack) and a one-line opener. */
+  cv_variant: z.string().nullable().optional(),
+  pitch: z.string().nullable().optional(),
 });
 export type JobRow = z.infer<typeof JobRowSchema>;
+
+/** The CV versions an AI score can recommend, with the file name each one has. */
+export const CvVariantSchema = z.enum(["support", "implementation", "automation", "fullstack"]);
+export type CvVariant = z.infer<typeof CvVariantSchema>;
+export const CV_NAMES: Record<CvVariant, string> = {
+  support: "Support Engineer",
+  implementation: "Implementation Engineer",
+  automation: "Automation Developer",
+  fullstack: "Full-Stack Developer",
+};

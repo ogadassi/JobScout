@@ -3,15 +3,32 @@
  * Telegram-flavored HTML (only <b>, <i>, <a> tags).
  */
 
-import type { JobRow } from "../types/schemas.js";
+import { CV_NAMES, CvVariantSchema, type JobRow } from "../types/schemas.js";
 import { escapeHtml as e } from "../utils/text.js";
+
+/** The short id shown in emails and used in reply commands: the url hash's first 5 characters. */
+export const shortId = (r: Pick<JobRow, "url_hash">) => r.url_hash.slice(0, 5);
+
+function kitLine(r: JobRow): string {
+  const cv = CvVariantSchema.safeParse(r.cv_variant);
+  const parts = [cv.success ? `CV: ${CV_NAMES[cv.data]}` : "", r.pitch ? `Opener: "${e(r.pitch)}"` : ""].filter(Boolean);
+  return parts.length ? `📎 ${parts.join(" · ")}` : "";
+}
+
+/** How to update a job by replying to the email. Kept short: one line per command. */
+export const COMMAND_HELP = [
+  "<b>Reply to this email to update jobs</b> (one per line; the id is in [brackets]):",
+  "applied ID · interview ID 2026-12-03 · replied ID · rejected ID · skip ID · star ID",
+  "note ID any text · follow up ID 2026-12-10 · list · help",
+].join("\n");
 
 function jobLine(r: JobRow, i: number): string {
   const loc = r.location ? ` · ${e(r.location.length > 40 ? `${r.location.slice(0, 40)}…` : r.location)}` : "";
   return [
-    `${i + 1}. <b>${e(r.title)}</b> — ${e(r.company)}`,
+    `${i + 1}. <b>${e(r.title)}</b> — ${e(r.company)} [${shortId(r)}]`,
     `⭐ ${r.score}/10${loc}`,
     r.reason ? `<i>${e(r.reason)}</i>` : "",
+    kitLine(r),
     `<a href="${e(r.link)}">Open job</a>`,
   ]
     .filter(Boolean)
@@ -19,7 +36,7 @@ function jobLine(r: JobRow, i: number): string {
 }
 
 function followUpLine(r: JobRow): string {
-  return `• <b>${e(r.title)}</b> — ${e(r.company)} (applied ${r.applied_date ?? "?"}) <a href="${e(r.link)}">link</a>`;
+  return `• <b>${e(r.title)}</b> — ${e(r.company)} [${shortId(r)}] (applied ${r.applied_date ?? "?"}) <a href="${e(r.link)}">link</a>`;
 }
 
 export interface RunStats {
@@ -30,11 +47,11 @@ export interface RunStats {
   newJobs: number;
 }
 
-export function dailyDigest(date: string, jobs: JobRow[], followUps: JobRow[], stats: RunStats): string {
+export function dailyDigest(date: string, jobs: JobRow[], followUps: JobRow[], stats: RunStats, footer = COMMAND_HELP): string {
   const head = `🔎 <b>JobScout · ${date}</b>\n${stats.newJobs} new matching jobs (scanned ${stats.scanned} ads at ${stats.companies} companies${stats.failedCompanies ? `, ${stats.failedCompanies} boards failed` : ""}).`;
   const body = jobs.length ? jobs.map(jobLine).join("\n\n") : "No new jobs above the score cut-off today.";
   const fu = followUps.length ? `\n\n📬 <b>Follow-ups due</b>\n${followUps.map(followUpLine).join("\n")}` : "";
-  return `${head}\n\n${body}${fu}\n\n<i>Update status in the Supabase table: starred / applied / replied / interview / rejected.</i>`;
+  return `${head}\n\n${body}${fu}\n\n${footer}`;
 }
 
 export function weeklySummary(fromDate: string, toDate: string, rows: JobRow[], followUps: JobRow[]): string {
@@ -54,9 +71,10 @@ export function weeklySummary(fromDate: string, toDate: string, rows: JobRow[], 
     `• Replies / interviews: <b>${replies.length}</b>`,
     `• Follow-ups due: <b>${followUps.length}</b>`,
   ];
-  if (applied.length) lines.push("", "<b>Applied this week</b>", ...applied.map((r) => `• ${e(r.title)} — ${e(r.company)}`));
-  if (replies.length) lines.push("", "<b>Replies / interviews</b>", ...replies.map((r) => `• ${e(r.title)} — ${e(r.company)} (${r.status})`));
-  if (missed.length) lines.push("", "<b>Best jobs not applied to yet</b>", ...missed.map((r) => `• ${r.score}/10 <a href="${e(r.link)}">${e(r.title)}</a> — ${e(r.company)}`));
+  if (applied.length) lines.push("", "<b>Applied this week</b>", ...applied.map((r) => `• ${e(r.title)} — ${e(r.company)} [${shortId(r)}]`));
+  if (replies.length) lines.push("", "<b>Replies / interviews</b>", ...replies.map((r) => `• ${e(r.title)} — ${e(r.company)} [${shortId(r)}] (${r.status})`));
+  if (missed.length) lines.push("", "<b>Best jobs not applied to yet</b>", ...missed.map((r) => `• ${r.score}/10 <a href="${e(r.link)}">${e(r.title)}</a> — ${e(r.company)} [${shortId(r)}]`));
   if (followUps.length) lines.push("", "<b>Follow-ups due</b>", ...followUps.map(followUpLine));
+  lines.push("", COMMAND_HELP);
   return lines.join("\n");
 }
